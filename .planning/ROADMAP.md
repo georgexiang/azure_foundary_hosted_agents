@@ -24,5 +24,5 @@
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Skill Manager 核心实现（含 Git 仓库支持）+ 示例 Skill 文件
-- [ ] 01-02-PLAN.md — Agent 入口集成 + 部署配置 + 文档
+- [x] 01-01-PLAN.md — Skill Manager 核心实现（含 Git 仓库支持）+ 示例 Skill 文件
+- [x] 01-02-PLAN.md — Agent 入口集成 + 部署配置 + 文档
