@@ -1,0 +1,36 @@
+# Unique identifier/name for this agent
+name: af-agent-with-skills
+# Brief description of what this agent does
+description: >
+  An AI agent that supports installing and composing external standard skills
+  (agentskills.io specification). Skills are loaded at startup based on the
+  AGENT_SKILLS environment variable. Supports local, git repo, ClawHub, and URL sources.
+metadata:
+  # Categorization tags for organizing and discovering agents
+  authors:
+    - Microsoft
+  tags:
+    - Azure AI AgentServer
+    - Microsoft Agent Framework
+    - Agent Skills
+    - agentskills.io
+    - OpenClaw
+    - ClawHub
+template:
+  name: af-agent-with-skills
+  kind: hosted
+  protocols:
+    - protocol: responses
+  environment_variables:
+    - name: AZURE_OPENAI_ENDPOINT
+      value: ${AZURE_OPENAI_ENDPOINT}
+    - name: AZURE_OPENAI_CHAT_DEPLOYMENT_NAME
+      value: "{{chat}}"
+    - name: AGENT_SKILLS
+      value: "local:travel-advisor,local:code-reviewer"
+    - name: AGENT_MAX_SKILL_TOKENS
+      value: "4000"
+resources:
+  - kind: model
+    id: gpt-5
+    name: chat
