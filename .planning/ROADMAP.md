@@ -26,3 +26,19 @@
 Plans:
 - [x] 01-01-PLAN.md — Skill Manager 核心实现（含 Git 仓库支持）+ 示例 Skill 文件
 - [x] 01-02-PLAN.md — Agent 入口集成 + 部署配置 + 文档
+
+---
+
+### Phase 02: conversation-support
+
+**Goal:** 为 agent-with-skills 添加 Conversation 持久化支持，实现多用户多轮对话历史保存，本地用 JSON 文件存储，云端自动使用 Foundry Conversations API
+**Requirements:** [CONV-01, CONV-02, CONV-03]
+**Plans:** 1 plan
+
+Requirements:
+- CONV-01: 集成 AgentSessionRepository，本地使用 JsonLocalFileAgentSessionRepository 持久化对话历史
+- CONV-02: 云端部署时自动使用 FoundryConversationSessionRepository（SDK 内置行为，无需额外代码）
+- CONV-03: 通过 ENABLE_SESSION_PERSISTENCE 环境变量控制是否开启本地持久化
+
+Plans:
+- [x] 02-01-PLAN.md — 集成 session_repository + 环境变量控制 + 本地验证

@@ -85,3 +85,5 @@ uv.lock
 # Temporary files
 *.tmp
 *.temp
+
+*.pdf

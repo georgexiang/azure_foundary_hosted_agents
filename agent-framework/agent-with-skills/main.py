@@ -69,26 +69,84 @@ def main():
         tools.append({"type": "mcp", "project_connection_id": conn_id})
 
     # 6. Create Agent  (imports deferred to avoid early init failures)
+    import asyncio
+
     from agent_framework.azure import AzureOpenAIChatClient
     from azure.ai.agentserver.agentframework import (
-        FoundryToolsChatMiddleware,
+        FoundryToolsContextProvider,
         from_agent_framework,
+    )
+    from azure.ai.agentserver.agentframework.persistence import (
+        JsonLocalFileAgentSessionRepository,
     )
     from azure.identity import DefaultAzureCredential
 
-    middleware = FoundryToolsChatMiddleware(tools) if tools else None
+    context_providers = [FoundryToolsContextProvider(tools)] if tools else []
     chat_client = AzureOpenAIChatClient(
         credential=DefaultAzureCredential(),
-        middleware=middleware,
     )
-    agent = chat_client.create_agent(
+    agent = chat_client.as_agent(
         name="SkillableAgent",
         instructions=instructions,
+        context_providers=context_providers if context_providers else None,
     )
 
-    # 7. Start HTTP service
+    # 7. Configure session persistence
+    session_repo = None
+    if os.environ.get("ENABLE_SESSION_PERSISTENCE", "").lower() == "true":
+        storage_path = os.environ.get("SESSION_STORAGE_PATH", "./thread_storage")
+        session_repo = JsonLocalFileAgentSessionRepository(storage_path=storage_path)
+        logger.info("Session persistence enabled: %s", storage_path)
+
+    # 8. Start HTTP service
     logger.info("Starting SkillableAgent on http://localhost:8088")
-    from_agent_framework(agent).run()
+
+    # 9. Inject gen_ai.azure_ai_project.id into trace spans
+    #    The Foundry Portal Traces page filters by this attribute.
+    project_endpoint = os.environ.get("AZURE_AI_PROJECT_ENDPOINT", "")
+    if project_endpoint:
+        try:
+            from azure.ai.agentserver.core.logger import request_context
+            from azure.ai.agentserver.core.server.base import AgentRunContextMiddleware
+
+            # Derive CognitiveServices project resource ID
+            project_id = os.environ.get("AZURE_AI_FOUNDRY_PROJECT_ID", "")
+            if not project_id:
+                from urllib.parse import urlparse
+                parsed = urlparse(project_endpoint)
+                account_name = parsed.hostname.split(".")[0]
+                project_name = parsed.path.rstrip("/").split("/")[-1]
+                sub = os.environ.get("AZURE_SUBSCRIPTION_ID", "")
+                rg = os.environ.get("AZURE_RESOURCE_GROUP", "")
+                project_id = (
+                    f"/subscriptions/{sub}/resourceGroups/{rg}"
+                    f"/providers/Microsoft.CognitiveServices"
+                    f"/accounts/{account_name}/projects/{project_name}"
+                )
+
+            # Patch middleware to add project ID to request-level context
+            _orig_set_ctx = AgentRunContextMiddleware.set_run_context_to_context_var
+
+            def _patched_set_ctx(self, run_context):
+                _orig_set_ctx(self, run_context)
+                ctx = request_context.get() or {}
+                ctx["gen_ai.azure_ai_project.id"] = project_id
+                request_context.set(ctx)
+
+            AgentRunContextMiddleware.set_run_context_to_context_var = _patched_set_ctx
+
+            # Also set as OTEL resource attribute so ALL spans (including child
+            # dependency spans from agent_framework) carry the project ID.
+            os.environ.setdefault(
+                "OTEL_RESOURCE_ATTRIBUTES",
+                f"gen_ai.azure_ai_project.id={project_id}",
+            )
+            logger.info("Injected gen_ai.azure_ai_project.id: %s", project_id)
+        except Exception as e:
+            logger.warning("Failed to inject project ID into traces: %s", e)
+
+    app = from_agent_framework(agent, session_repository=session_repo)
+    asyncio.run(app.run_async())
 
 
 if __name__ == "__main__":
